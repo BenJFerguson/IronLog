@@ -1,0 +1,389 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: IronLog fitness tracking API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: workouts
+    description: Workout operations
+  - name: sets
+    description: Workout set operations
+  - name: stats
+    description: Statistics and summaries
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /auth/signup:
+    post:
+      operationId: signup
+      tags: [auth]
+      summary: Create a new account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthCredentials"
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login to an existing account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthCredentials"
+      responses:
+        "200":
+          description: Logged in successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      responses:
+        "200":
+          description: Logged out
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /workouts:
+    get:
+      operationId: listWorkouts
+      tags: [workouts]
+      summary: List workouts for the authenticated user
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: List of workouts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkoutWithSets"
+        "401":
+          description: Not authenticated
+
+    post:
+      operationId: createWorkout
+      tags: [workouts]
+      summary: Create a new workout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWorkoutBody"
+      responses:
+        "201":
+          description: Workout created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkoutWithSets"
+        "401":
+          description: Not authenticated
+
+  /workouts/{id}:
+    get:
+      operationId: getWorkout
+      tags: [workouts]
+      summary: Get a single workout
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Workout detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkoutWithSets"
+        "404":
+          description: Not found
+
+    delete:
+      operationId: deleteWorkout
+      tags: [workouts]
+      summary: Delete a workout
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /stats/dashboard:
+    get:
+      operationId: getDashboardStats
+      tags: [stats]
+      summary: Get dashboard summary stats
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+        "401":
+          description: Not authenticated
+
+  /stats/quote:
+    get:
+      operationId: getMotivationalQuote
+      tags: [stats]
+      summary: Get a random motivational quote
+      responses:
+        "200":
+          description: A motivational quote
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quote"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    AuthCredentials:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+      required:
+        - email
+        - password
+
+    AuthUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+      required:
+        - id
+        - email
+
+    WorkoutSet:
+      type: object
+      properties:
+        id:
+          type: integer
+        workoutId:
+          type: integer
+        exerciseName:
+          type: string
+        weight:
+          type: number
+        reps:
+          type: integer
+        rpe:
+          type: number
+          nullable: true
+      required:
+        - id
+        - workoutId
+        - exerciseName
+        - weight
+        - reps
+
+    CreateWorkoutBody:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        notes:
+          type: string
+          nullable: true
+        sets:
+          type: array
+          items:
+            $ref: "#/components/schemas/CreateSetBody"
+      required:
+        - date
+        - sets
+
+    CreateSetBody:
+      type: object
+      properties:
+        exerciseName:
+          type: string
+        weight:
+          type: number
+        reps:
+          type: integer
+        rpe:
+          type: number
+          nullable: true
+      required:
+        - exerciseName
+        - weight
+        - reps
+
+    WorkoutWithSets:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        date:
+          type: string
+        notes:
+          type: string
+          nullable: true
+        sets:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkoutSet"
+        totalVolume:
+          type: number
+        exerciseCount:
+          type: integer
+      required:
+        - id
+        - userId
+        - date
+        - sets
+        - totalVolume
+        - exerciseCount
+
+    DashboardStats:
+      type: object
+      properties:
+        weeklyWorkoutCount:
+          type: integer
+        totalWorkouts:
+          type: integer
+        recentWorkouts:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkoutWithSets"
+        weeklyVolume:
+          type: number
+        allTimeVolume:
+          type: number
+      required:
+        - weeklyWorkoutCount
+        - totalWorkouts
+        - recentWorkouts
+        - weeklyVolume
+        - allTimeVolume
+
+    Quote:
+      type: object
+      properties:
+        text:
+          type: string
+        author:
+          type: string
+      required:
+        - text
+        - author
