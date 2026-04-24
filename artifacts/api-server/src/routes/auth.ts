@@ -20,10 +20,11 @@ router.post("/signup", async (req, res) => {
     return;
   }
 
+  // Cost factor 12 balances security (brute-force resistance) with acceptable latency (~300 ms).
   const passwordHash = await bcrypt.hash(password, 12);
   const [user] = await db.insert(usersTable).values({ email, passwordHash }).returning({ id: usersTable.id, email: usersTable.email });
 
-  (req.session as any).userId = user.id;
+  req.session.userId = user.id;
   res.status(201).json({ id: user.id, email: user.email });
 });
 
@@ -37,6 +38,7 @@ router.post("/login", async (req, res) => {
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.email, email)).limit(1);
   if (!user) {
+    // Return the same error for missing user and wrong password to prevent user enumeration.
     res.status(401).json({ error: "Invalid credentials" });
     return;
   }
@@ -47,7 +49,7 @@ router.post("/login", async (req, res) => {
     return;
   }
 
-  (req.session as any).userId = user.id;
+  req.session.userId = user.id;
   res.json({ id: user.id, email: user.email });
 });
 
@@ -58,7 +60,7 @@ router.post("/logout", (req, res) => {
 });
 
 router.get("/me", async (req, res) => {
-  const userId = (req.session as any).userId;
+  const userId = req.session.userId;
   if (!userId) {
     res.status(401).json({ error: "Not authenticated" });
     return;

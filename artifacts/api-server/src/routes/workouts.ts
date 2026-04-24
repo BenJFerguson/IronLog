@@ -2,21 +2,14 @@ import { Router } from "express";
 import { db, workoutsTable, workoutSetsTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { CreateWorkoutBody, ListWorkoutsQueryParams, GetWorkoutParams, DeleteWorkoutParams } from "@workspace/api-zod";
+import { requireAuth } from "../middleware/require-auth";
 
 const router = Router();
 
-function requireAuth(req: any, res: any): number | null {
-  const userId = req.session?.userId;
-  if (!userId) {
-    res.status(401).json({ error: "Not authenticated" });
-    return null;
-  }
-  return userId as number;
-}
-
-function computeWorkoutMeta(sets: { weight: number; reps: number }[]) {
+/** Computes total lifted volume (weight × reps across all sets) and unique exercise count. */
+function computeWorkoutMeta(sets: { weight: number; reps: number; exerciseName: string }[]) {
   const totalVolume = sets.reduce((sum, s) => sum + s.weight * s.reps, 0);
-  const exerciseNames = new Set(sets.map((s: any) => s.exerciseName));
+  const exerciseNames = new Set(sets.map((s) => s.exerciseName));
   return { totalVolume, exerciseCount: exerciseNames.size };
 }
 

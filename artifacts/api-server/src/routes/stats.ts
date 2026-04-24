@@ -1,17 +1,9 @@
 import { Router } from "express";
 import { db, pool, workoutsTable, workoutSetsTable } from "@workspace/db";
-import { eq, and, gte, desc } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
+import { requireAuth } from "../middleware/require-auth";
 
 const router = Router();
-
-function requireAuth(req: any, res: any): number | null {
-  const userId = req.session?.userId;
-  if (!userId) {
-    res.status(401).json({ error: "Not authenticated" });
-    return null;
-  }
-  return userId as number;
-}
 
 router.get("/dashboard", async (req, res) => {
   const userId = requireAuth(req, res);
@@ -20,8 +12,12 @@ router.get("/dashboard", async (req, res) => {
   const now = new Date();
   const weekAgo = new Date(now);
   weekAgo.setDate(weekAgo.getDate() - 7);
+  // ISO date string used for lexicographic comparison against stored date strings (YYYY-MM-DD)
   const weekAgoStr = weekAgo.toISOString().split("T")[0];
 
+  // Fetch all workouts once and derive weekly/recent slices in memory to avoid multiple round-trips.
+  // NOTE: This approach works well for typical user volumes (hundreds of workouts).
+  // At very large scale, replace with SQL aggregation queries.
   const allWorkouts = await db
     .select()
     .from(workoutsTable)
@@ -70,6 +66,8 @@ router.get("/progress", async (req, res) => {
     return;
   }
 
+  // Aggregated per-workout stats for a single exercise, ordered chronologically for charting.
+  // Uses raw SQL for GROUP BY aggregation that Drizzle's ORM layer doesn't express cleanly.
   const result = await pool.query(
     `
     SELECT w.date AS workout_date,
@@ -84,6 +82,7 @@ router.get("/progress", async (req, res) => {
     [userId, exercise],
   );
 
+  // pg driver returns numeric columns as strings; coerce them explicitly.
   const data = result.rows.map((row: any) => ({
     workoutDate:
       typeof row.workout_date === "string"
@@ -106,6 +105,9 @@ router.get("/last-exercise", async (req, res) => {
     return;
   }
 
+  // Fetches all sets from the most recent workout that includes this exercise.
+  // The correlated subquery pins to the single latest workout_id to avoid mixing sets
+  // from different dates when the same exercise appears across multiple workouts on the same date.
   const result = await pool.query(
     `
     SELECT ws.id,
@@ -159,7 +161,7 @@ const fallbackQuotes = [
   { text: "The body achieves what the mind believes.", author: "Napoleon Hill" },
 ];
 
-router.get("/quote", async (req, res) => {
+router.get("/quote", async (_req, res) => {
   try {
     const response = await fetch("https://zenquotes.io/api/random", {
       signal: AbortSignal.timeout(3000),
@@ -172,7 +174,7 @@ router.get("/quote", async (req, res) => {
       }
     }
   } catch {
-    // fall through to fallback
+    // External API unavailable — fall through to bundled fallback quotes
   }
   const quote = fallbackQuotes[Math.floor(Math.random() * fallbackQuotes.length)];
   res.json(quote);

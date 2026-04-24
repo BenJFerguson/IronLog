@@ -31,8 +31,11 @@ app.use(
   }),
 );
 
+// CORS_ORIGIN is required in production to restrict credentialed cross-origin requests.
+// In development it falls back to reflecting the request origin (any origin allowed).
+const corsOrigin = process.env["CORS_ORIGIN"] ?? true;
 app.use(cors({
-  origin: true,
+  origin: corsOrigin,
   credentials: true,
 }));
 app.use(express.json());
